@@ -1,19 +1,25 @@
-const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
-const User = require('../models/User');
-const sendEmail = require('../utils/sendEmail');
+const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const User = require("../models/User");
+const sendEmail = require("../utils/sendEmail");
 
 const genToken = (id) =>
-  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 exports.register = async (req, res) => {
   try {
     const { name, email, password, confirmPassword } = req.body;
     if (password !== confirmPassword)
-      return res.status(400).json({ message: 'Passwords do not match' });
+      return res.status(400).json({ message: "Passwords do not match" });
 
     const user = await User.create({ name, email, password });
-    res.status(201).json({ token: genToken(user._id) });
+    res.status(201).json({ token: genToken(user._id),
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email
+      }
+     });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -25,12 +31,12 @@ exports.login = async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
-      return res.status(401).json({ message: 'Invalid password' });
+      return res.status(401).json({ message: "Invalid password" });
     }
 
     res.json({ token: genToken(user._id) });
@@ -39,11 +45,29 @@ exports.login = async (req, res) => {
   }
 };
 
+exports.getUserProfile = async (req, res) => {
+  try {
+    // Use user ID from JWT token if authenticated, otherwise from URL parameter
+    const userId = req.user?.id || req.params.id;
+
+    if (!userId) {
+      return res.status(400).json({ message: "User ID required" });
+    }
+
+    const user = await User.findById(userId).select("-password"); // Exclude password
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.json({ user });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 exports.forgotPassword = async (req, res) => {
   const { email } = req.body;
   const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ message: 'User not found' });
-  console.log('📩 Forgot Password triggered with:', email);
+  if (!user) return res.status(404).json({ message: "User not found" });
+  console.log("📩 Forgot Password triggered with:", email);
 
   const otp = crypto.randomInt(100000, 999999).toString();
   user.otp = otp;
@@ -53,15 +77,15 @@ exports.forgotPassword = async (req, res) => {
   try {
     await sendEmail(
       email,
-      'Your OTP Code',
+      "Your OTP Code",
       `<p>Your verification code is <b>${otp}</b>. It expires in 10 min.</p>`
     );
   } catch (err) {
-    console.error('❌ Email sending failed:', err.message);
-    return res.status(500).json({ message: 'Failed to send OTP email' });
+    console.error("❌ Email sending failed:", err.message);
+    return res.status(500).json({ message: "Failed to send OTP email" });
   }
 
-  res.json({ message: 'OTP sent' });
+  res.json({ message: "OTP sent" });
 };
 
 exports.verifyOtp = async (req, res) => {
@@ -71,7 +95,7 @@ exports.verifyOtp = async (req, res) => {
     otp,
     otpExpires: { $gt: Date.now() },
   });
-  if (!user) return res.status(400).json({ message: 'OTP invalid/expired' });
+  if (!user) return res.status(400).json({ message: "OTP invalid/expired" });
 
   user.otp = undefined;
   user.otpExpires = undefined;
@@ -87,12 +111,12 @@ exports.resetPassword = async (req, res) => {
     otp,
     otpExpires: { $gt: Date.now() },
   });
-  if (!user) return res.status(400).json({ message: 'OTP invalid/expired' });
+  if (!user) return res.status(400).json({ message: "OTP invalid/expired" });
 
   user.password = newPassword;
   user.otp = undefined;
   user.otpExpires = undefined;
   await user.save();
 
-  res.json({ message: 'Password reset successful' });
+  res.json({ message: "Password reset successful" });
 };
