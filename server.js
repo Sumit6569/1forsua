@@ -13,13 +13,16 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files (images)
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// ---API Routes---
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/messages", require("./routes/messages"));
+app.use("/api/social", require("./routes/social"));
+app.use("/api/goals", require("./routes/goals"))
 
 app.get("/", (_, res) =>
   res.send("Backend up - see /api/auth/* for endpoints")
 );
-app.use("/api/messages", require("./routes/messages"));
-app.use("/api/social", require("./routes/social"));
+
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () =>
   console.log(`Server running on http://localhost:${PORT}`)
